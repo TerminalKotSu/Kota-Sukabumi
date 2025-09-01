@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pelacak Pendapatan Tahunan</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* Menggunakan font Inter sebagai default */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* Gaya untuk kotak pesan yang muncul dari samping */
+        #message-box {
+            top: 1rem;
+            right: 1rem;
+            z-index: 50;
+            background-color: #1e293b; /* slate-800 */
+            color: #ffffff;
+            padding: 1rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            transform: translateX(120%);
+            transition: transform 0.4s ease-in-out;
+        }
+        #message-box.show {
+            transform: translateX(0);
+        }
+
+        /* Gaya untuk modal konfirmasi */
+        .modal {
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 60;
+        }
+        .modal-content {
+            z-index: 70;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen">
+
+    <!-- Kotak Pesan Dinamis -->
+    <div id="message-box" class="fixed top-4 right-4 z-50 bg-slate-800 text-white p-4 rounded-xl shadow-lg transform transition-transform duration-300 translate-x-full">
+        <p id="message-text"></p>
+    </div>
+
+    <!-- Modal Konfirmasi Penghapusan -->
+    <div id="delete-modal" class="modal fixed inset-0 flex items-center justify-center p-4 hidden">
+        <div class="modal-content bg-white p-6 rounded-xl shadow-2xl w-full max-w-sm">
+            <h3 class="text-lg font-bold text-slate-700 mb-4">Konfirmasi Penghapusan</h3>
+            <p class="text-slate-600 mb-4">Untuk menghapus data ini, masukkan kode akses.</p>
+            <div class="relative mb-4">
+                <input type="password" id="delete-code-input" placeholder="Masukkan kode rahasia" class="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 transition">
+                <button type="button" id="toggle-delete-code" class="absolute inset-y-0 right-0 top-0 flex items-center pr-3 focus:outline-none">
+                    <svg id="delete-eye-open" class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                    <svg id="delete-eye-closed" class="h-5 w-5 text-gray-400 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.25A9.954 9.954 0 0112 19c-4.478 0-8.268-2.943-9.542-7 1.274-4.057 5.064-7 9.542-7a9.954 9.954 0 011.875.125M3 3l18 18" />
+                    </svg>
+                </button>
+            </div>
+            <div class="flex justify-end space-x-2">
+                <button id="cancel-delete-btn" class="px-4 py-2 text-slate-600 rounded-lg hover:bg-slate-100 transition">Batal</button>
+                <button id="confirm-delete-btn" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition">Konfirmasi</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="container mx-auto max-w-4xl p-4 sm:p-6 md:p-8">
+        <!-- Judul Utama dan Navigasi -->
+        <header class="text-center mb-8">
+            <h1 class="text-3xl sm:text-4xl font-bold text-slate-800">Pelacak Pendapatan Tahunan</h1>
+            <p class="text-slate-500 mt-2">Catat pendapatan harian Anda dan pantau progres menuju target.</p>
+            
+            <!-- Pemilih Tahun -->
+            <div class="mt-4">
+                <label for="year-select" class="block text-sm font-medium text-slate-600 mb-1">Pilih Tahun:</label>
+                <select id="year-select" class="w-48 p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition text-center">
+                    <option value="2025">2025</option>
+                    <option value="2026">2026</option>
+                    <option value="2027">2027</option>
+                </select>
+            </div>
+        </header>
+
+        <nav class="flex justify-center space-x-4 mb-8">
+            <button id="nav-dashboard" class="px-4 py-2 rounded-lg font-semibold bg-blue-600 text-white shadow hover:bg-blue-700 transition-colors">Dasbor</button>
+            <button id="nav-input" class="px-4 py-2 rounded-lg font-semibold bg-white text-blue-600 border border-blue-600 shadow hover:bg-slate-100 transition-colors">Input Pendapatan</button>
+        </nav>
+
+        <main class="space-y-8">
+            <!-- Halaman Dasbor -->
+            <div id="dashboard-page" class="">
+                <!-- Bagian Dasbor Statistik -->
+                <section class="bg-white p-6 rounded-xl shadow-md mt-8">
+                    <h2 class="text-xl font-bold text-slate-700 mb-4">Dasbor Anda</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+                        <div class="bg-blue-50 p-4 rounded-lg">
+                            <h3 class="text-sm font-semibold text-blue-800 uppercase">TARGET</h3>
+                            <p id="target-display" class="text-2xl font-bold text-blue-900 mt-1">Rp 0</p>
+                        </div>
+                        <div class="bg-green-50 p-4 rounded-lg">
+                            <h3 class="text-sm font-semibold text-green-800 uppercase">REALISASI</h3>
+                            <p id="realisasi-display" class="text-2xl font-bold text-green-900 mt-1">Rp 0</p>
+                        </div>
+                        <div class="bg-amber-50 p-4 rounded-lg">
+                            <h3 class="text-sm font-semibold text-amber-800 uppercase">KEKURANGAN</h3>
+                            <p id="kekurangan-display" class="text-2xl font-bold text-amber-900 mt-1">Rp 0</p>
+                        </div>
+                    </div>
+                    <!-- Progress Bar -->
+                    <div class="mt-6">
+                        <div class="w-full bg-slate-200 rounded-full h-4">
+                            <div id="progress-bar" class="bg-green-500 h-4 rounded-full transition-all duration-500" style="width: 0%"></div>
+                        </div>
+                        <p id="progress-text" class="text-center text-sm text-slate-600 mt-2">0% tercapai</p>
+                    </div>
+                    <!-- Grafik Bulanan -->
+                    <div class="mt-8">
+                        <h3 class="text-lg font-semibold text-slate-700 mb-2 text-center">Grafik Pendapatan Bulanan Tahun Ini</h3>
+                        <canvas id="monthly-chart"></canvas>
+                    </div>
+                    <!-- Grafik Harian -->
+                    <div class="mt-8">
+                        <h3 class="text-lg font-semibold text-slate-700 mb-2 text-center">Grafik Pendapatan Harian Bulan Ini</h3>
+                        <canvas id="daily-chart"></canvas>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Halaman Input Pendapatan -->
+            <div id="input-page" class="hidden">
+                <!-- Bagian Target -->
+                <section class="bg-white p-6 rounded-xl shadow-md mb-8">
+                    <h2 class="text-xl font-bold text-slate-700 mb-4">Atur Target Anda</h2>
+                    <div class="flex flex-col sm:flex-row gap-4 items-end">
+                        <div class="w-full">
+                            <label for="target-input" class="block text-sm font-medium text-slate-600 mb-1">Target Pendapatan 1 Tahun (Rp)</label>
+                            <input type="number" id="target-input" placeholder="e.g., 100000000" class="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+                        </div>
+                        <div class="relative w-full">
+                            <label for="target-code-input" class="block text-sm font-medium text-slate-600 mb-1">Kode Akses</label>
+                            <input type="password" id="target-code-input" placeholder="Masukkan kode rahasia" required class="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+                            <button type="button" id="target-toggle-code" class="absolute inset-y-0 right-0 top-6 flex items-center pr-3 focus:outline-none">
+                                <svg id="target-eye-open" class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                </svg>
+                                <svg id="target-eye-closed" class="h-5 w-5 text-gray-400 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.25A9.954 9.954 0 0112 19c-4.478 0-8.268-2.943-9.542-7 1.274-4.057 5.064-7 9.542-7a9.954 9.954 0 011.875.125M3 3l18 18" />
+                                </svg>
+                            </button>
+                        </div>
+                        <button id="set-target-btn" class="w-full sm:w-auto bg-blue-600 text-white font-semibold px-6 py-3 rounded-lg hover:bg-blue-700 transition shadow-sm">Atur</button>
+                    </div>
+                </section>
+
+                <section class="bg-white p-6 rounded-xl shadow-md mb-8">
+                    <h2 class="text-xl font-bold text-slate-700 mb-4">Tambah Tahun Baru</h2>
+                    <div class="flex flex-col sm:flex-row gap-4 items-end">
+                        <div class="w-full">
+                            <label for="new-year-input" class="block text-sm font-medium text-slate-600 mb-1">Tahun Baru</label>
+                            <input type="number" id="new-year-input" placeholder="e.g., 2028" class="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+                        </div>
+                        <button id="add-year-btn" class="w-full sm:w-auto bg-slate-600 text-white font-semibold px-6 py-3 rounded-lg hover:bg-slate-700 transition shadow-sm">Tambah Tahun</button>
+                    </div>
+                </section>
+
+                <section class="bg-white p-6 rounded-xl shadow-md">
+                    <h2 class="text-xl font-bold text-slate-700 mb-4">Input Pendapatan Harian</h2>
+                    <form id="income-form" class="space-y-4">
+                        <div>
+                            <label for="amount-input" class="block text-sm font-medium text-slate-600 mb-1">Jumlah (Rp)</label>
+                            <input type="number" id="amount-input" placeholder="e.g., 50000" required class="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+                        </div>
+                        <div>
+                            <label for="date-input" class="block text-sm font-medium text-slate-600 mb-1">Tanggal</label>
+                            <input type="date" id="date-input" required class="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+                        </div>
+                        <div class="relative">
+                            <label for="code-input" class="block text-sm font-medium text-slate-600 mb-1">Kode Akses</label>
+                            <input type="password" id="code-input" placeholder="Masukkan kode rahasia" required class="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+                            <button type="button" id="toggle-code" class="absolute inset-y-0 right-0 top-6 flex items-center pr-3 focus:outline-none">
+                                <svg id="eye-open" class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                </svg>
+                                <svg id="eye-closed" class="h-5 w-5 text-gray-400 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.25A9.954 9.954 0 0112 19c-4.478 0-8.268-2.943-9.542-7 1.274-4.057 5.064-7 9.542-7a9.954 9.954 0 011.875.125M3 3l18 18" />
+                                </svg>
+                            </button>
+                        </div>
+                        <button type="submit" class="w-full bg-green-600 text-white font-semibold py-3 rounded-lg hover:bg-green-700 transition shadow-sm">Tambah Pendapatan</button>
+                    </form>
+                </section>
+
+                <!-- Bagian Riwayat Pemasukan -->
+                <section class="bg-white p-6 rounded-xl shadow-md mt-8">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-bold text-slate-700">Riwayat Pemasukan</h2>
+                    </div>
+                    <div class="overflow-x-auto max-h-80">
+                        <table class="w-full text-sm text-left text-slate-500">
+                            <thead class="text-xs text-slate-700 uppercase bg-slate-50 sticky top-0">
+                                <tr>
+                                    <th scope="col" class="px-6 py-3">Tanggal</th>
+                                    <th scope="col" class="px-6 py-3">Jumlah</th>
+                                    <th scope="col" class="px-6 py-3">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="history-body">
+                                <!-- Data riwayat akan dimasukkan di sini oleh JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Memilih elemen-elemen DOM
+            const yearSelect = document.getElementById('year-select');
+            const targetInput = document.getElementById('target-input');
+            const setTargetBtn = document.getElementById('set-target-btn');
+            const targetCodeInput = document.getElementById('target-code-input');
+            const targetToggleCodeBtn = document.getElementById('target-toggle-code');
+            const targetEyeOpenIcon = document.getElementById('target-eye-open');
+            const targetEyeClosedIcon = document.getElementById('target-eye-closed');
+            const newYearInput = document.getElementById('new-year-input');
+            const addYearBtn = document.getElementById('add-year-btn');
+
+            const targetDisplay = document.getElementById('target-display');
+            const realisasiDisplay = document.getElementById('realisasi-display');
+            const kekuranganDisplay = document.getElementById('kekurangan-display');
+            const progressBar = document.getElementById('progress-bar');
+            const progressText = document.getElementById('progress-text');
+            const monthlyChartCanvas = document.getElementById('monthly-chart');
+            const dailyChartCanvas = document.getElementById('daily-chart');
+            const incomeForm = document.getElementById('income-form');
+            const amountInput = document.getElementById('amount-input');
+            const dateInput = document.getElementById('date-input');
+            const codeInput = document.getElementById('code-input');
+            const toggleCodeBtn = document.getElementById('toggle-code');
+            const eyeOpenIcon = document.getElementById('eye-open');
+            const eyeClosedIcon = document.getElementById('eye-closed');
+            const historyBody = document.getElementById('history-body');
+            const messageBox = document.getElementById('message-box');
+            const messageText = document.getElementById('message-text');
+
+            const navDashboardBtn = document.getElementById('nav-dashboard');
+            const navInputBtn = document.getElementById('nav-input');
+            const dashboardPage = document.getElementById('dashboard-page');
+            const inputPage = document.getElementById('input-page');
+            
+            // Elemen modal penghapusan
+            const deleteModal = document.getElementById('delete-modal');
+            const deleteCodeInput = document.getElementById('delete-code-input');
+            const confirmDeleteBtn = document.getElementById('confirm-delete-btn');
+            const cancelDeleteBtn = document.getElementById('cancel-delete-btn');
+            const toggleDeleteCodeBtn = document.getElementById('toggle-delete-code');
+            const deleteEyeOpenIcon = document.getElementById('delete-eye-open');
+            const deleteEyeClosedIcon = document.getElementById('delete-eye-closed');
+
+            let monthlyChart = null;
+            let dailyChart = null;
+            const accessCode = "0505"; // Kode rahasia
+
+            // Fungsi untuk menampilkan/menyembunyikan laman
+            const showPage = (pageId) => {
+                dashboardPage.classList.add('hidden');
+                inputPage.classList.add('hidden');
+                document.getElementById(pageId).classList.remove('hidden');
+
+                // Update styling navigasi
+                navDashboardBtn.classList.remove('bg-blue-600', 'text-white', 'border-blue-600');
+                navDashboardBtn.classList.add('bg-white', 'text-blue-600', 'border', 'border-blue-600');
+                navInputBtn.classList.remove('bg-blue-600', 'text-white', 'border-blue-600');
+                navInputBtn.classList.add('bg-white', 'text-blue-600', 'border', 'border-blue-600');
+
+                if (pageId === 'dashboard-page') {
+                    navDashboardBtn.classList.remove('bg-white', 'text-blue-600', 'border');
+                    navDashboardBtn.classList.add('bg-blue-600', 'text-white');
+                } else {
+                    navInputBtn.classList.remove('bg-white', 'text-blue-600', 'border');
+                    navInputBtn.classList.add('bg-blue-600', 'text-white');
+                }
+            };
+
+            // --- FUNGSI UTILITY ---
+            // Fungsi untuk menampilkan pesan pop-up
+            const showMessage = (message) => {
+                messageText.textContent = message;
+                messageBox.classList.add('show');
+                setTimeout(() => {
+                    messageBox.classList.remove('show');
+                }, 3000);
+            };
+
+            // Fungsi untuk memformat angka menjadi mata uang Rupiah
+            const formatRupiah = (angka) => {
+                return new Intl.NumberFormat('id-ID', {
+                    style: 'currency',
+                    currency: 'IDR',
+                    minimumFractionDigits: 0
+                }).format(angka);
+            };
+
+            // Fungsi untuk memuat data dari localStorage berdasarkan tahun
+            const loadData = (year) => {
+                const yearlyData = JSON.parse(localStorage.getItem('yearlyData')) || {};
+                // Inisialisasi data untuk tahun yang dipilih jika belum ada
+                if (!yearlyData[year]) {
+                    yearlyData[year] = {
+                        pendapatan: [],
+                        target: 0
+                    };
+                }
+                return yearlyData[year];
+            };
+
+            // Fungsi untuk menyimpan data ke localStorage
+            const saveData = (year, data) => {
+                const yearlyData = JSON.parse(localStorage.getItem('yearlyData')) || {};
+                yearlyData[year] = data;
+                localStorage.setItem('yearlyData', JSON.stringify(yearlyData));
+                updateDashboard();
+            };
+
+            // --- LOGIKA DASBOR ---
+            const updateDashboard = () => {
+                const selectedYear = yearSelect.value;
+                const { pendapatan, target } = loadData(selectedYear);
+                const totalRealisasi = pendapatan.reduce((sum, entry) => sum + entry.amount, 0);
+                const kekurangan = target - totalRealisasi;
+                const progressPercentage = target > 0 ? Math.min((totalRealisasi / target) * 100, 100) : 0;
+
+                targetDisplay.textContent = formatRupiah(target);
+                realisasiDisplay.textContent = formatRupiah(totalRealisasi);
+                kekuranganDisplay.textContent = formatRupiah(kekurangan);
+
+                // Mengubah warna kekurangan display berdasarkan nilai
+                kekuranganDisplay.classList.toggle('text-amber-900', kekurangan >= 0);
+                kekuranganDisplay.classList.toggle('text-green-900', kekurangan < 0);
+
+                // Memperbarui progress bar dan teks
+                progressBar.style.width = `${progressPercentage}%`;
+                progressText.textContent = `${Math.floor(progressPercentage)}% tercapai`;
+
+                renderHistory(pendapatan);
+                renderMonthlyChart(pendapatan, selectedYear);
+                renderDailyChart(pendapatan, selectedYear);
+            };
+
+            // --- LOGIKA RIWAYAT ---
+            const renderHistory = (pendapatan) => {
+                historyBody.innerHTML = '';
+                // Mengurutkan data terbaru ke terlama
+                const sortedData = [...pendapatan].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+                sortedData.forEach((entry, index) => {
+                    const row = historyBody.insertRow();
+                    row.className = 'bg-white border-b hover:bg-slate-50';
+                    row.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap font-medium text-slate-900">${entry.date}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">${formatRupiah(entry.amount)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <button class="delete-btn text-red-500 hover:text-red-700 font-semibold" data-index="${index}">Hapus</button>
+                        </td>
+                    `;
+                });
+            };
+
+            // --- LOGIKA GRAFIK ---
+            const renderMonthlyChart = (pendapatan, year) => {
+                if (monthlyChart) {
+                    monthlyChart.destroy();
+                }
+
+                const monthlyTotals = {};
+                const sortedData = [...pendapatan].sort((a, b) => new Date(a.date) - new Date(b.date));
+                sortedData.forEach(entry => {
+                    const date = new Date(entry.date);
+                    if (date.getFullYear() == year) {
+                        const month = date.toLocaleString('id-ID', { month: 'short' });
+                        const key = `${year}-${date.getMonth()}`;
+                        if (!monthlyTotals[key]) {
+                            monthlyTotals[key] = { month: month, amount: 0 };
+                        }
+                        monthlyTotals[key].amount += entry.amount;
+                    }
+                });
+
+                const labels = Object.values(monthlyTotals).map(item => item.month);
+                const data = Object.values(monthlyTotals).map(item => item.amount);
+
+                monthlyChart = new Chart(monthlyChartCanvas, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Total Pendapatan (Rp)',
+                            data: data,
+                            backgroundColor: '#16a34a', // green-600
+                            borderColor: '#15803d', // green-700
+                            borderWidth: 1,
+                            borderRadius: 8,
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    callback: function(value) {
+                                        return formatRupiah(value);
+                                    }
+                                }
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                display: false
+                            }
+                        }
+                    }
+                });
+            };
+
+            const renderDailyChart = (pendapatan, year) => {
+                if (dailyChart) {
+                    dailyChart.destroy();
+                }
+
+                const now = new Date();
+                const currentMonth = now.getMonth();
+
+                const dailyTotals = {};
+                const daysInMonth = new Date(year, currentMonth + 1, 0).getDate();
+                for (let i = 1; i <= daysInMonth; i++) {
+                    dailyTotals[i] = 0;
+                }
+
+                pendapatan.forEach(entry => {
+                    const date = new Date(entry.date);
+                    if (date.getFullYear() == year && date.getMonth() === currentMonth) {
+                        const day = date.getDate();
+                        dailyTotals[day] += entry.amount;
+                    }
+                });
+
+                const labels = Object.keys(dailyTotals);
+                const data = Object.values(dailyTotals);
+
+                dailyChart = new Chart(dailyChartCanvas, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Pendapatan (Rp)',
+                            data: data,
+                            backgroundColor: '#1d4ed8', // blue-700
+                            borderColor: '#1e40af', // blue-800
+                            borderWidth: 1,
+                            borderRadius: 8,
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    callback: function(value) {
+                                        return formatRupiah(value);
+                                    }
+                                }
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                display: false
+                            }
+                        }
+                    }
+                });
+            };
+
+            // --- EVENT LISTENERS ---
+            // Menangani input pendapatan
+            incomeForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const selectedYear = yearSelect.value;
+                const amount = parseFloat(amountInput.value);
+                const date = dateInput.value;
+                const code = codeInput.value;
+
+                if (code !== accessCode) {
+                    showMessage('Kode akses salah. Harap masukkan kode yang benar.');
+                    return;
+                }
+
+                if (isNaN(amount) || amount <= 0) {
+                    showMessage('Jumlah tidak valid. Harap masukkan angka positif.');
+                    return;
+                }
+
+                if (!date) {
+                    showMessage('Tanggal tidak boleh kosong.');
+                    return;
+                }
+                
+                // Cek apakah tahun dari tanggal cocok dengan tahun yang dipilih
+                const inputYear = new Date(date).getFullYear();
+                if (inputYear != selectedYear) {
+                    showMessage(`Tanggal harus berada di tahun ${selectedYear}.`);
+                    return;
+                }
+
+                const currentData = loadData(selectedYear);
+                currentData.pendapatan.push({ date, amount });
+                saveData(selectedYear, currentData);
+                incomeForm.reset();
+                showMessage('Pendapatan berhasil ditambahkan!');
+            });
+
+            // Menangani pengaturan target
+            setTargetBtn.addEventListener('click', () => {
+                const selectedYear = yearSelect.value;
+                const newTarget = parseFloat(targetInput.value);
+                const code = targetCodeInput.value;
+
+                if (code !== accessCode) {
+                    showMessage('Kode akses salah. Harap masukkan kode yang benar.');
+                    return;
+                }
+
+                if (isNaN(newTarget) || newTarget < 0) {
+                    showMessage('Target tidak valid. Harap masukkan angka yang benar.');
+                    return;
+                }
+                const currentData = loadData(selectedYear);
+                currentData.target = newTarget;
+                saveData(selectedYear, currentData);
+                // Mengosongkan kolom input setelah berhasil diatur
+                targetInput.value = '';
+                targetCodeInput.value = '';
+                showMessage('Target berhasil diatur!');
+            });
+            
+            // Menangani tombol untuk menampilkan/menyembunyikan kode pada form pendapatan
+            toggleCodeBtn.addEventListener('click', () => {
+                const isPassword = codeInput.type === 'password';
+                codeInput.type = isPassword ? 'text' : 'password';
+                eyeOpenIcon.classList.toggle('hidden');
+                eyeClosedIcon.classList.toggle('hidden');
+            });
+
+            // Menangani tombol untuk menampilkan/menyembunyikan kode pada form target
+            targetToggleCodeBtn.addEventListener('click', () => {
+                const isPassword = targetCodeInput.type === 'password';
+                targetCodeInput.type = isPassword ? 'text' : 'password';
+                targetEyeOpenIcon.classList.toggle('hidden');
+                targetEyeClosedIcon.classList.toggle('hidden');
+            });
+
+            // Menangani penambahan tahun baru
+            addYearBtn.addEventListener('click', () => {
+                const newYear = parseInt(newYearInput.value, 10);
+                if (isNaN(newYear) || newYear.toString().length !== 4) {
+                    showMessage('Tahun tidak valid. Harap masukkan tahun 4 digit.');
+                    return;
+                }
+
+                // Cek apakah tahun sudah ada
+                const yearExists = Array.from(yearSelect.options).some(option => parseInt(option.value, 10) === newYear);
+                if (yearExists) {
+                    showMessage(`Tahun ${newYear} sudah ada.`);
+                    return;
+                }
+
+                const newOption = new Option(newYear, newYear);
+                yearSelect.add(newOption);
+                
+                // Mengurutkan pilihan tahun
+                const options = Array.from(yearSelect.options).sort((a, b) => a.value - b.value);
+                yearSelect.innerHTML = '';
+                options.forEach(option => yearSelect.add(option));
+
+                newYearInput.value = '';
+                showMessage(`Tahun ${newYear} berhasil ditambahkan!`);
+            });
+            
+            // Event listener navigasi
+            navDashboardBtn.addEventListener('click', () => showPage('dashboard-page'));
+            navInputBtn.addEventListener('click', () => showPage('input-page'));
+            
+            // Event listener untuk perubahan tahun
+            yearSelect.addEventListener('change', () => {
+                updateDashboard();
+            });
+
+            // Variabel untuk menyimpan indeks data yang akan dihapus
+            let indexToDelete = -1;
+
+            // Menangani klik tombol hapus di riwayat
+            historyBody.addEventListener('click', (e) => {
+                if (e.target.classList.contains('delete-btn')) {
+                    indexToDelete = e.target.getAttribute('data-index');
+                    deleteModal.classList.remove('hidden');
+                    deleteCodeInput.value = ''; // Mengosongkan input setiap kali modal dibuka
+                    deleteCodeInput.focus();
+                }
+            });
+
+            // Menangani klik tombol konfirmasi hapus di modal
+            confirmDeleteBtn.addEventListener('click', () => {
+                const enteredCode = deleteCodeInput.value;
+                if (enteredCode === accessCode) {
+                    const selectedYear = yearSelect.value;
+                    const currentData = loadData(selectedYear);
+                    
+                    // Menghapus data dari array berdasarkan index
+                    currentData.pendapatan.splice(indexToDelete, 1);
+                    
+                    // Menyimpan kembali data yang telah diperbarui
+                    saveData(selectedYear, currentData);
+                    showMessage('Data riwayat berhasil dihapus.');
+                    deleteModal.classList.add('hidden');
+                    indexToDelete = -1; // Reset indeks
+                } else {
+                    showMessage('Kode akses salah. Data tidak dihapus.');
+                    deleteCodeInput.value = '';
+                }
+            });
+
+            // Menangani klik tombol batal di modal
+            cancelDeleteBtn.addEventListener('click', () => {
+                deleteModal.classList.add('hidden');
+                indexToDelete = -1; // Reset indeks
+            });
+
+            // Menangani tombol untuk menampilkan/menyembunyikan kode pada modal hapus
+            toggleDeleteCodeBtn.addEventListener('click', () => {
+                const isPassword = deleteCodeInput.type === 'password';
+                deleteCodeInput.type = isPassword ? 'text' : 'password';
+                deleteEyeOpenIcon.classList.toggle('hidden');
+                deleteEyeClosedIcon.classList.toggle('hidden');
+            });
+
+            // Mengatur tahun default ke tahun saat ini jika 2025, 2026, atau 2027
+            const currentYear = new Date().getFullYear();
+            if (['2025', '2026', '2027'].includes(String(currentYear))) {
+                yearSelect.value = currentYear;
+            }
+
+            // Memuat data awal dan menampilkan laman dasbor
+            updateDashboard();
+            showPage('dashboard-page');
+        });
+    </script>
+</body>
+</html>
